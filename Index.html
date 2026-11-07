@@ -1,0 +1,175 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#171923">
+  <title>ChattingVoices — Your voice. Your community.</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+
+    <aside class="servers">
+      <div class="brand-icon">🎧</div>
+      <div class="server-icon active">CV</div>
+      <div class="server-icon">🎮</div>
+      <button class="server-add" title="Create server">+</button>
+    </aside>
+
+    <aside class="sidebar">
+      <header class="server-heading">
+        <span>ChattingVoices</span>
+        <button id="serverMenu">⌄</button>
+      </header>
+
+      <div class="sidebar-content">
+        <div class="section-heading">COMMUNITY</div>
+        <button class="channel selected" data-room="public-lounge">
+          <span>#</span> Public Lounge
+          <span class="public-tag">PUBLIC</span>
+        </button>
+
+        <div class="section-heading channel-heading">
+          VOICE CHANNELS
+          <button id="createRoom">+</button>
+        </div>
+
+        <button class="channel" data-room="gaming">
+          <span>◖</span> Gaming
+        </button>
+        <button class="channel" data-room="chill">
+          <span>◖</span> Chill Zone
+        </button>
+
+        <div class="section-heading">
+          PRIVATE ROOMS
+        </div>
+        <button class="channel private" data-room="staff">
+          <span>🔒</span> Staff Room
+        </button>
+        <button class="channel private" data-room="friends">
+          <span>🔒</span> Friends Room
+        </button>
+
+        <div class="section-heading">INFORMATION</div>
+        <button class="channel" data-room="announcements">
+          <span>#</span> Announcements
+        </button>
+      </div>
+
+      <div class="user-panel">
+        <div class="avatar">Y</div>
+        <div class="user-info">
+          <strong id="usernameDisplay">You</strong>
+          <small>MEMBER</small>
+        </div>
+        <button id="settingsButton" title="Settings">⚙</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h2 id="roomTitle">Public Lounge</h2>
+          <span id="roomSubtitle">The community hangout spot</span>
+        </div>
+        <div class="top-actions">
+          <span class="connection" id="connectionStatus">
+            ● Not connected
+          </span>
+          <button id="inviteButton">Invite</button>
+        </div>
+      </header>
+
+      <div class="content">
+        <section class="welcome">
+          <div class="welcome-icon">🎙️</div>
+          <h1 id="welcomeTitle">Welcome to ChattingVoices!</h1>
+          <p id="welcomeDescription">
+            Meet people, make friends and talk about anything.
+          </p>
+          <button class="primary-button" id="joinButton">
+            Join Voice Room
+          </button>
+        </section>
+
+        <section class="room-info">
+          <div>
+            <h3>Room members</h3>
+            <p>See who's hanging out here.</p>
+          </div>
+          <span class="member-count" id="memberCount">0 online</span>
+        </section>
+
+        <div class="member-grid" id="memberGrid">
+          <div class="empty-members">
+            Nobody is in this room yet. Be the first!
+          </div>
+        </div>
+      </div>
+
+      <footer class="voice-bar">
+        <div class="voice-status">
+          <span class="voice-dot"></span>
+          <div>
+            <strong id="voiceTitle">Not in a voice room</strong>
+            <small id="voiceSubtitle">Join a room to start talking</small>
+          </div>
+        </div>
+        <div class="voice-controls">
+          <button id="muteButton" disabled title="Mute microphone">🎙️</button>
+          <button id="deafenButton" disabled title="Deafen">🎧</button>
+          <button id="leaveButton" class="leave-button" disabled title="Leave room">☎</button>
+        </div>
+      </footer>
+    </main>
+
+    <aside class="members-sidebar">
+      <h3>MEMBERS</h3>
+      <div class="role-title owner-role">👑 OWNER — 1</div>
+      <div class="member"><span class="avatar gold">O</span> Owner</div>
+      <div class="role-title admin-role">🛡️ ADMIN — 1</div>
+      <div class="member"><span class="avatar blue">A</span> Admin</div>
+      <div class="role-title mod-role">🔨 MODERATOR — 1</div>
+      <div class="member"><span class="avatar purple">M</span> Moderator</div>
+      <div class="role-title">👤 MEMBERS</div>
+      <div class="member"><span class="avatar green">Y</span> You</div>
+    </aside>
+  </div>
+
+  <!-- Room creation and private room dialog -->
+  <div class="modal hidden" id="roomModal">
+    <div class="modal-card">
+      <button class="modal-close" id="closeModal">×</button>
+      <h2 id="modalTitle">Create a room</h2>
+      <p id="modalDescription">Set up your own community room.</p>
+
+      <form id="roomForm">
+        <label for="roomName">Room name</label>
+        <input id="roomName" required maxlength="40"
+          placeholder="My awesome room">
+
+        <label for="roomType">Room visibility</label>
+        <select id="roomType">
+          <option value="public">Public</option>
+          <option value="private">Private (password required)</option>
+        </select>
+
+        <div id="passwordField" class="hidden">
+          <label for="roomPassword">Room password</label>
+          <input id="roomPassword" type="password"
+            minlength="8" placeholder="At least 8 characters">
+        </div>
+
+        <button class="primary-button" type="submit">Create room</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
