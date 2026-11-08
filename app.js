@@ -36,7 +36,7 @@ let currentRoom = "public-lounge";
 let joined = false;
 let muted = false;
 let deafened = false;
-
+let livekitRoom = null;
 const $ = id => document.getElementById(id);
 
 function notify(message) {
@@ -99,8 +99,34 @@ document.querySelectorAll(".channel").forEach(button => {
   });
 });
 
-$("joinButton").addEventListener("click", () => {
-  notify("Voice server not configured yet. Next we'll connect LiveKit.");
+$("joinButton").addEventListener("click", async () => {
+  try {
+    notify("Connecting to voice server...");
+
+    const response = await fetch(
+      "https://chattingvoices-api.ho-anh.workers.dev/token",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          identity: "Guest-" + Math.random().toString(36).slice(2, 8),
+          room: currentRoom
+        })
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) throw new Error(data.error);
+
+    notify("Token received! LiveKit is ready.");
+
+  } catch (error) {
+    console.error(error);
+    notify("Connection failed: " + error.message);
+  }
 });
 
 $("createRoom").addEventListener("click", () => {
