@@ -117,11 +117,20 @@ $("joinButton").addEventListener("click", async () => {
       }
     );
 
-    const data = await response.json();
+   const data = await response.json();
 
-    if (!response.ok) throw new Error(data.error);
+if (!response.ok) throw new Error(data.error);
 
-    notify("Token received! LiveKit is ready.");
+livekitRoom = new LivekitClient.Room();
+
+await livekitRoom.connect(data.serverUrl, data.token);
+
+await livekitRoom.localParticipant.setMicrophoneEnabled(true);
+
+joined = true;
+renderRoom();
+
+notify("Connected to voice chat!");
 
   } catch (error) {
     console.error(error);
@@ -175,7 +184,11 @@ $("deafenButton").addEventListener("click", () => {
   $("deafenButton").textContent = deafened ? "🔕" : "🎧";
 });
 
-$("leaveButton").addEventListener("click", () => {
+$("leaveButton").addEventListener("click", async () => {
+  if (livekitRoom) {
+    await livekitRoom.disconnect();
+    livekitRoom = null;
+  }
   joined = false;
   muted = false;
   deafened = false;
