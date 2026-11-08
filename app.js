@@ -296,8 +296,7 @@ $("joinButton").addEventListener("click", async () => {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          identity: "Guest-" +
-            Math.random().toString(36).slice(2, 8),
+          identity: displayName || "Guest",
           room: currentRoom
         })
       }
