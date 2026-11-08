@@ -174,16 +174,31 @@ $("roomForm").addEventListener("submit", event => {
   $("roomModal").classList.add("hidden");
 });
 
-$("muteButton").addEventListener("click", () => {
+$("muteButton").addEventListener("click", async () => {
+  if (!livekitRoom || !joined) return;
+
   muted = !muted;
+
+  await livekitRoom.localParticipant.setMicrophoneEnabled(!muted);
+
   $("muteButton").textContent = muted ? "🔇" : "🎙️";
 });
 
 $("deafenButton").addEventListener("click", () => {
+  if (!livekitRoom || !joined) return;
+
   deafened = !deafened;
+
+  livekitRoom.remoteParticipants.forEach(participant => {
+    participant.audioTrackPublications.forEach(publication => {
+      if (publication.track) {
+        publication.track.setVolume(deafened ? 0 : 1);
+      }
+    });
+  });
+
   $("deafenButton").textContent = deafened ? "🔕" : "🎧";
 });
-
 $("leaveButton").addEventListener("click", async () => {
   if (livekitRoom) {
     await livekitRoom.disconnect();
