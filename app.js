@@ -469,7 +469,42 @@ $("settingsButton").addEventListener("click", () => {
 $("serverMenu").addEventListener("click", () => {
   notify("Server settings are coming soon.");
 });
+// Welcome screen and display name
+const welcomeScreen = $("welcomeScreen");
+const displayNameInput = $("displayNameInput");
+const rememberCheckbox = $("rememberMe");
 
+if (displayName) {
+  displayNameInput.value = displayName;
+  rememberCheckbox.checked = rememberMe;
+} else {
+  welcomeScreen.classList.remove("hidden");
+}
+
+$("enterButton").addEventListener("click", () => {
+  const name = displayNameInput.value.trim();
+
+  if (!name) {
+    notify("Please enter your name!");
+    return;
+  }
+
+  displayName = name;
+  rememberMe = rememberCheckbox.checked;
+
+  if (rememberMe) {
+    localStorage.setItem("chattingvoices_name", name);
+    localStorage.setItem("chattingvoices_remember", "true");
+  } else {
+    localStorage.removeItem("chattingvoices_name");
+    localStorage.removeItem("chattingvoices_remember");
+  }
+
+  $("usernameDisplay").textContent = name;
+  welcomeScreen.classList.add("hidden");
+
+  notify("Welcome to ChattingVoices, " + name + "!");
+});
 // Initial interface
 updateVoiceUI();
 updateAudioButtons();
