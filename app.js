@@ -37,46 +37,145 @@ let joined = false;
 let muted = false;
 let deafened = false;
 let livekitRoom = null;
+let connecting = false;
+
 const $ = id => document.getElementById(id);
 
 function notify(message) {
   const toast = $("toast");
+  if (!toast) return;
+
   toast.textContent = message;
   toast.classList.add("show");
+
   clearTimeout(notify.timer);
-  notify.timer = setTimeout(() => toast.classList.remove("show"), 3500);
+  notify.timer = setTimeout(
+    () => toast.classList.remove("show"),
+    3500
+  );
+}
+
+function updateVoiceUI() {
+  if ($("joinButton")) $("joinButton").disabled = joined || connecting;
+  if ($("leaveButton")) $("leaveButton").disabled = !joined;
+  if ($("muteButton")) $("muteButton").disabled = !joined;
+  if ($("deafenButton")) $("deafenButton").disabled = !joined;
+
+  if ($("connectionStatus")) {
+    $("connectionStatus").textContent =
+      joined ? "● Connected" :
+      connecting ? "● Connecting..." :
+      "● Not connected";
+  }
+
+  if ($("voiceTitle")) {
+    $("voiceTitle").textContent =
+      joined ? "Connected to " + rooms[currentRoom].name :
+      "Not in a voice room";
+  }
+
+  if ($("voiceSubtitle")) {
+    $("voiceSubtitle").textContent =
+      joined ? "You're connected to voice chat" :
+      "Join a room to start talking";
+  }
+
+  $("voice-dot")?.classList.toggle("connected", joined);
+}
+
+function setParticipantSpeaking(participants) {
+  const speaking = new Set(
+    participants.map(participant => participant.identity)
+  );
+
+  document.querySelectorAll(".member-card").forEach(card => {
+    card.classList.toggle(
+      "speaking",
+      speaking.has(card.dataset.identity)
+    );
+  });
+}
+
+function renderMembers() {
+  const grid = $("memberGrid");
+  if (!grid) return;
+
+  grid.replaceChildren();
+
+  if (!joined || !livekitRoom) {
+    const empty = document.createElement("div");
+    empty.className = "empty-members";
+    empty.textContent = "Nobody is in this room yet.";
+    grid.appendChild(empty);
+
+    $("memberCount").textContent = "0 online";
+    return;
+  }
+
+  const local = livekitRoom.localParticipant;
+  const participants = [
+    local,
+    ...livekitRoom.remoteParticipants.values()
+  ];
+
+  participants.forEach(participant => {
+    const card = document.createElement("div");
+    card.className = "member-card";
+    card.dataset.identity = participant.identity;
+
+    const avatar = document.createElement("div");
+    avatar.className = "avatar green";
+    avatar.textContent =
+      participant.identity.charAt(0).toUpperCase();
+
+    const details = document.createElement("div");
+
+    const name = document.createElement("strong");
+    name.textContent =
+      participant === local ? "You" : participant.identity;
+
+    const status = document.createElement("small");
+    status.textContent =
+      participant === local ? "MEMBER · YOU" : "MEMBER";
+
+    details.append(name, status);
+    card.append(avatar, details);
+    grid.appendChild(card);
+  });
+
+  $("memberCount").textContent =
+    participants.length + " online";
 }
 
 function renderRoom() {
   const room = rooms[currentRoom];
+
   $("roomTitle").textContent = room.name;
+
   $("welcomeTitle").textContent = room.private
     ? "Welcome to " + room.name
     : "Welcome to ChattingVoices!";
+
   $("roomSubtitle").textContent = room.description;
+
   $("welcomeDescription").textContent = room.private
     ? "This room is private. Access requires authorization."
     : "Meet people, make friends and talk about anything.";
 
   document.querySelectorAll(".channel").forEach(button => {
-    button.classList.toggle("selected", button.dataset.room === currentRoom);
+    button.classList.toggle(
+      "selected",
+      button.dataset.room === currentRoom
+    );
   });
 
-  $("memberGrid").innerHTML = joined
-    ? `<div class="member-card">
-         <div class="avatar green">Y</div>
-         <div><strong>You</strong><small>MEMBER · YOU</small></div>
-       </div>`
-    : `<div class="empty-members">Nobody is in this room yet.</div>`;
-
-  $("memberCount").textContent = joined ? "1 online" : "0 online";
+  renderMembers();
 }
 
 function selectRoom(roomId) {
-  const room = rooms[roomId];
-  if (!room) return;
+  if (!rooms[roomId]) return;
 
-  if (joined) {
+  if (joined || connecting) {
     notify("Leave your current voice room before switching.");
     return;
   }
@@ -85,12 +184,88 @@ function selectRoom(roomId) {
   renderRoom();
 }
 
+function applyDeafen() {
+  if (!livekitRoom) return;
+
+  livekitRoom.remoteParticipants.forEach(participant => {
+    participant.audioTrackPublications.forEach(publication => {
+      if (publication.track &&
+          typeof publication.track.setVolume === "function") {
+        publication.track.setVolume(deafened ? 0 : 1);
+      }
+    });
+  });
+}
+
+function setupLiveKitEvents(room) {
+  const events = LivekitClient.RoomEvent || {};
+
+  room.on(
+    events.ParticipantConnected || "participantConnected",
+    () => renderMembers()
+  );
+
+  room.on(
+    events.ParticipantDisconnected || "participantDisconnected",
+    () => renderMembers()
+  );
+
+  room.on(
+    events.ActiveSpeakersChanged || "activeSpeakersChanged",
+    speakers => setParticipantSpeaking(speakers)
+  );
+
+  room.on(
+    events.TrackSubscribed || "trackSubscribed",
+    (track, publication) => {
+      if (publication.kind === "audio" && deafened) {
+        if (typeof track.setVolume === "function") {
+          track.setVolume(0);
+        }
+      }
+    }
+  );
+
+  room.on(
+    events.TrackUnsubscribed || "trackUnsubscribed",
+    () => renderMembers()
+  );
+
+  room.on(
+    events.Disconnected || "disconnected",
+    () => {
+      if (livekitRoom !== room) return;
+
+      livekitRoom = null;
+      joined = false;
+      connecting = false;
+      muted = false;
+      deafened = false;
+
+      updateVoiceUI();
+      updateAudioButtons();
+      renderRoom();
+    }
+  );
+}
+
+function updateAudioButtons() {
+  if ($("muteButton")) {
+    $("muteButton").textContent = muted ? "🔇" : "🎙️";
+  }
+
+  if ($("deafenButton")) {
+    $("deafenButton").textContent = deafened ? "🔕" : "🎧";
+  }
+}
+
+// Channel selection
 document.querySelectorAll(".channel").forEach(button => {
   button.addEventListener("click", () => {
     const id = button.dataset.room;
     const room = rooms[id];
 
-    if (room.private) {
+    if (room?.private) {
       notify("Private room access requires the secure backend.");
       return;
     }
@@ -99,10 +274,17 @@ document.querySelectorAll(".channel").forEach(button => {
   });
 });
 
+// Join voice
 $("joinButton").addEventListener("click", async () => {
-  try {
-    notify("Connecting to voice server...");
+  if (joined || connecting) return;
 
+  connecting = true;
+  updateVoiceUI();
+  notify("Connecting to voice server...");
+
+  let newRoom = null;
+
+  try {
     const response = await fetch(
       "https://chattingvoices-api.ho-anh.workers.dev/token",
       {
@@ -111,33 +293,122 @@ $("joinButton").addEventListener("click", async () => {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          identity: "Guest-" + Math.random().toString(36).slice(2, 8),
+          identity: "Guest-" +
+            Math.random().toString(36).slice(2, 8),
           room: currentRoom
         })
       }
     );
 
-   const data = await response.json();
+    const data = await response.json();
 
-if (!response.ok) throw new Error(data.error);
+    if (!response.ok) {
+      throw new Error(data.error || "Token request failed");
+    }
 
-livekitRoom = new LivekitClient.Room();
+    newRoom = new LivekitClient.Room();
+    livekitRoom = newRoom;
 
-await livekitRoom.connect(data.serverUrl, data.token);
+    setupLiveKitEvents(newRoom);
 
-await livekitRoom.localParticipant.setMicrophoneEnabled(true);
+    await newRoom.connect(data.serverUrl, data.token);
 
-joined = true;
-renderRoom();
+    await newRoom.localParticipant.setMicrophoneEnabled(true);
 
-notify("Connected to voice chat!");
+    joined = true;
+    connecting = false;
+    muted = false;
+    deafened = false;
+
+    updateVoiceUI();
+    updateAudioButtons();
+    renderRoom();
+
+    notify("Connected to voice chat!");
 
   } catch (error) {
-    console.error(error);
+    console.error("Voice connection error:", error);
+
+    if (newRoom) {
+      try {
+        await newRoom.disconnect();
+      } catch (disconnectError) {
+        console.error(disconnectError);
+      }
+    }
+
+    if (livekitRoom === newRoom) {
+      livekitRoom = null;
+    }
+
+    joined = false;
+    connecting = false;
+
+    updateVoiceUI();
+    updateAudioButtons();
+    renderRoom();
+
     notify("Connection failed: " + error.message);
   }
 });
 
+// Leave voice
+$("leaveButton").addEventListener("click", async () => {
+  if (!livekitRoom || !joined) return;
+
+  const roomToLeave = livekitRoom;
+
+  joined = false;
+  muted = false;
+  deafened = false;
+  livekitRoom = null;
+
+  updateVoiceUI();
+  updateAudioButtons();
+  renderRoom();
+
+  try {
+    await roomToLeave.disconnect();
+    notify("You left the voice room.");
+  } catch (error) {
+    console.error("Disconnect error:", error);
+    notify("Disconnected with a warning.");
+  }
+});
+
+// Mute microphone
+$("muteButton").addEventListener("click", async () => {
+  if (!livekitRoom || !joined) return;
+
+  const nextMuted = !muted;
+
+  try {
+    await livekitRoom.localParticipant.setMicrophoneEnabled(
+      !nextMuted
+    );
+
+    muted = nextMuted;
+    updateAudioButtons();
+
+    notify(muted ? "Microphone muted." : "Microphone unmuted.");
+  } catch (error) {
+    console.error(error);
+    notify("Could not change microphone state.");
+  }
+});
+
+// Deafen
+$("deafenButton").addEventListener("click", () => {
+  if (!livekitRoom || !joined) return;
+
+  deafened = !deafened;
+  applyDeafen();
+  updateAudioButtons();
+
+  notify(deafened ? "Audio deafened." : "Audio restored.");
+});
+
+// Create room modal
 $("createRoom").addEventListener("click", () => {
   $("roomModal").classList.remove("hidden");
 });
@@ -148,9 +419,12 @@ $("closeModal").addEventListener("click", () => {
 
 $("roomType").addEventListener("change", event => {
   $("passwordField").classList.toggle(
-    "hidden", event.target.value !== "private"
+    "hidden",
+    event.target.value !== "private"
   );
-  $("roomPassword").required = event.target.value === "private";
+
+  $("roomPassword").required =
+    event.target.value === "private";
 });
 
 $("roomForm").addEventListener("submit", event => {
@@ -168,57 +442,13 @@ $("roomForm").addEventListener("submit", event => {
   }
 
   notify(type === "private"
-    ? "Private room creation needs the secure backend. No password has been saved."
+    ? "Private room creation needs the secure backend."
     : "Room creation needs the server backend before it can be published.");
 
   $("roomModal").classList.add("hidden");
 });
 
-$("muteButton").addEventListener("click", async () => {
-  if (!livekitRoom || !joined) return;
-
-  muted = !muted;
-
-  await livekitRoom.localParticipant.setMicrophoneEnabled(!muted);
-
-  $("muteButton").textContent = muted ? "🔇" : "🎙️";
-});
-
-$("deafenButton").addEventListener("click", () => {
-  if (!livekitRoom || !joined) return;
-
-  deafened = !deafened;
-
-  livekitRoom.remoteParticipants.forEach(participant => {
-    participant.audioTrackPublications.forEach(publication => {
-      if (publication.track) {
-        publication.track.setVolume(deafened ? 0 : 1);
-      }
-    });
-  });
-
-  $("deafenButton").textContent = deafened ? "🔕" : "🎧";
-});
-$("leaveButton").addEventListener("click", async () => {
-  if (livekitRoom) {
-    await livekitRoom.disconnect();
-    livekitRoom = null;
-  }
-  joined = false;
-  muted = false;
-  deafened = false;
-  $("muteButton").disabled = true;
-  $("deafenButton").disabled = true;
-  $("leaveButton").disabled = true;
-  $("connectionStatus").textContent = "● Not connected";
-  $("voiceTitle").textContent = "Not in a voice room";
-  $("voiceSubtitle").textContent = "Join a room to start talking";
-  $("muteButton").textContent = "🎙️";
-  $("deafenButton").textContent = "🎧";
-  $("voice-dot")?.classList.remove("connected");
-  renderRoom();
-});
-
+// Invite
 $("inviteButton").addEventListener("click", () => {
   if (navigator.clipboard) {
     navigator.clipboard.writeText(location.href)
@@ -237,4 +467,7 @@ $("serverMenu").addEventListener("click", () => {
   notify("Server settings are coming soon.");
 });
 
+// Initial interface
+updateVoiceUI();
+updateAudioButtons();
 renderRoom();
