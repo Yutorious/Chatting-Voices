@@ -39,6 +39,9 @@ let deafened = false;
 let livekitRoom = null;
 let connecting = false;
 
+let displayName = localStorage.getItem("chattingvoices_name") || "";
+let rememberMe = localStorage.getItem("chattingvoices_remember") === "true";
+
 const $ = id => document.getElementById(id);
 
 function notify(message) {
